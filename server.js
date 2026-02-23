@@ -5,6 +5,8 @@ const { Server } = require('socket.io');
 const { randomUUID } = require('crypto');
 
 const dev = process.env.NODE_ENV !== 'production';
+// Disable Turbopack — it has Windows compatibility issues with reserved filenames (nul, con, etc.)
+process.env.NEXT_PRIVATE_DISABLE_TURBOPACK = '1';
 const app = next({ dev });
 const handle = app.getRequestHandler();
 
