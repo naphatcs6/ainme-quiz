@@ -1,0 +1,24 @@
+{
+  "playlists": [
+    {
+      "id": "95cefca8-8664-494a-86c0-061c97fc9fed",
+      "name": "Anime01",
+      "createdBy": "Test",
+      "createdAt": "2026-02-24T14:03:33.949Z",
+      "songs": [
+        {
+          "videoId": "UHu-pgc-0pM",
+          "title": "Sword Art Online",
+          "artist": "Unknown",
+          "thumbnail": "https://img.youtube.com/vi/UHu-pgc-0pM/mqdefault.jpg"
+        },
+        {
+          "videoId": "O8T2u83GIiI",
+          "title": "Sword Art Online",
+          "artist": "Unknown",
+          "thumbnail": "https://img.youtube.com/vi/O8T2u83GIiI/mqdefault.jpg"
+        }
+      ]
+    }
+  ]
+}

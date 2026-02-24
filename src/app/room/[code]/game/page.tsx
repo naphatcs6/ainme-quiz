@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { useSocket } from '@/hooks/useSocket';
 
@@ -18,7 +18,8 @@ export default function GamePage() {
   const [timeLeft, setTimeLeft] = useState(30);
   const [maxTime, setMaxTime] = useState(30);
   const [players, setPlayers] = useState<Player[]>([]);
-  const [answer, setAnswer] = useState('');
+  const [choices, setChoices] = useState<string[]>([]);
+  const [selectedChoice, setSelectedChoice] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [myResult, setMyResult] = useState<{ correct: boolean; points: number } | null>(null);
   const [roundEnded, setRoundEnded] = useState(false);
@@ -31,9 +32,6 @@ export default function GamePage() {
   const [audioStarted, setAudioStarted] = useState(false);
   const [needsManualPlay, setNeedsManualPlay] = useState(false);
   const [iframeKey, setIframeKey] = useState(0); // force re-mount iframe
-
-  const inputRef = useRef<HTMLInputElement>(null);
-  const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Build YouTube embed URL
   const buildEmbedUrl = (videoId: string, autoplay: boolean) =>
@@ -55,13 +53,14 @@ export default function GamePage() {
 
   useEffect(() => {
     const offRound = on('round-started', (data: unknown) => {
-      const d = data as { round: number; totalRounds: number; videoId: string; duration: number; players: Player[] };
+      const d = data as { round: number; totalRounds: number; videoId: string; duration: number; players: Player[]; choices: string[] };
       setRound(d.round);
       setTotalRounds(d.totalRounds);
       setTimeLeft(d.duration);
       setMaxTime(d.duration);
       setPlayers(d.players);
-      setAnswer('');
+      setChoices(d.choices || []);
+      setSelectedChoice(null);
       setSubmitted(false);
       setMyResult(null);
       setRoundEnded(false);
@@ -71,7 +70,6 @@ export default function GamePage() {
       setNeedsManualPlay(false);
       // Start loading audio
       startAudio(d.videoId, true);
-      setTimeout(() => inputRef.current?.focus(), 600);
     });
 
     const offTimer = on('timer-tick', (data: unknown) => {
@@ -120,11 +118,10 @@ export default function GamePage() {
       if (d.status === 'playing' && d.videoId) {
         setRound(d.round!); setTotalRounds(d.totalRounds!);
         setTimeLeft(d.timeLeft ?? d.duration!); setMaxTime(d.duration!);
-        setPlayers(d.players || []); setAnswer('');
-        setSubmitted(false); setMyResult(null);
+        setPlayers(d.players || []); setChoices((d as { choices?: string[] }).choices || []);
+        setSelectedChoice(null); setSubmitted(false); setMyResult(null);
         setRoundEnded(false); setRevealSong(null); setRecentAnswers([]);
         startAudio(d.videoId, true);
-        setTimeout(() => inputRef.current?.focus(), 600);
       } else if (d.status === 'round-result' && d.song) {
         setRoundEnded(true); setRevealSong(d.song);
         setPlayers(d.players || []); setIsLastRound(d.isLastRound || false);
@@ -133,11 +130,12 @@ export default function GamePage() {
     });
   }, [isConnected, code, emit, startAudio]);
 
-  const handleSubmit = useCallback(() => {
-    if (submitted || !answer.trim() || roundEnded) return;
+  const handleChoiceSelect = useCallback((choice: string) => {
+    if (submitted || roundEnded) return;
+    setSelectedChoice(choice);
     setSubmitted(true);
-    emit('submit-answer', { roomCode: code, answer: answer.trim() });
-  }, [submitted, answer, roundEnded, emit, code]);
+    emit('submit-answer', { roomCode: code, answer: choice });
+  }, [submitted, roundEnded, emit, code]);
 
   const handleNextRound = () => emit('next-round', { roomCode: code });
 
@@ -183,7 +181,6 @@ export default function GamePage() {
                     <div style={{ position: 'relative', height: 0, overflow: 'hidden' }}>
                       <iframe
                         key={iframeKey}
-                        ref={iframeRef}
                         src={buildEmbedUrl(currentVideoId, audioStarted)}
                         allow="autoplay; encrypted-media"
                         style={{ position: 'absolute', top: '-9999px', left: 0, width: '1px', height: '1px', border: 'none', opacity: 0 }}
@@ -246,14 +243,24 @@ export default function GamePage() {
                 </>
               ) : (
                 /* Round Result */
-                <div style={{ padding: '2rem', textAlign: 'center' }}>
-                  <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🎌</div>
-                  <h2 style={{ margin: '0 0 0.5rem', fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>เฉลย</h2>
-                  {revealSong?.thumbnail && (
-                    <img src={revealSong.thumbnail} alt={revealSong.title} style={{ width: '120px', height: '90px', objectFit: 'cover', borderRadius: '10px', marginBottom: '0.75rem' }} />
+                <div style={{ padding: '1.5rem', textAlign: 'center' }}>
+                  <h2 style={{ margin: '0 0 0.75rem', fontSize: '1rem', color: 'var(--text-secondary)', fontWeight: 600 }}>🎌 เฉลย</h2>
+
+                  {/* YouTube video embed */}
+                  {revealSong?.videoId && (
+                    <div style={{ position: 'relative', width: '100%', paddingBottom: '56.25%', borderRadius: '12px', overflow: 'hidden', marginBottom: '1rem' }}>
+                      <iframe
+                        src={`https://www.youtube.com/embed/${revealSong.videoId}?autoplay=1&controls=1&rel=0&modestbranding=1`}
+                        allow="autoplay; encrypted-media; picture-in-picture"
+                        allowFullScreen
+                        style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none' }}
+                        title={revealSong.title}
+                      />
+                    </div>
                   )}
-                  <div style={{ fontSize: '1.5rem', fontWeight: 900, marginBottom: '0.3rem' }}>{revealSong?.title}</div>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: '1.25rem' }}>{revealSong?.artist}</div>
+
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, marginBottom: '0.25rem' }}>{revealSong?.title}</div>
+                  <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>{revealSong?.artist}</div>
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', marginBottom: '1rem' }}>
                     {players.filter(p => p.correct).map(p => (
                       <span key={p.id} className="badge badge-green">✅ {p.name} ตอบถูก!</span>
@@ -266,23 +273,61 @@ export default function GamePage() {
               )}
             </div>
 
-            {/* Answer Input */}
-            {!roundEnded && (
-              <div className="glass-card" style={{ padding: '1.25rem', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                <input
-                  id="answer-input"
-                  ref={inputRef}
-                  className="input-field"
-                  style={{ flex: 1, fontSize: '1.05rem', fontWeight: 600 }}
-                  placeholder="พิมพ์ชื่อเพลง..."
-                  value={answer}
-                  onChange={e => setAnswer(e.target.value)}
-                  disabled={submitted}
-                  onKeyDown={e => e.key === 'Enter' && handleSubmit()}
-                />
-                <button id="submit-answer-btn" className="btn-primary" style={{ whiteSpace: 'nowrap', padding: '0.85rem 1.5rem' }} onClick={handleSubmit} disabled={submitted || !answer.trim()}>
-                  {submitted ? '✅ ส่งแล้ว' : '🚀 ส่ง'}
-                </button>
+            {/* Multiple Choice Buttons */}
+            {!roundEnded && choices.length > 0 && (
+              <div className="glass-card" style={{ padding: '1.25rem' }}>
+                <p style={{ margin: '0 0 0.85rem', fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', fontWeight: 600 }}>
+                  🎯 เลือกชื่อเพลงที่ถูกต้อง
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.65rem' }}>
+                  {choices.map((choice, idx) => {
+                    const isSelected = selectedChoice === choice;
+                    const isCorrect = isSelected && myResult?.correct;
+                    const isWrong = isSelected && myResult !== null && !myResult.correct;
+                    const bgColor = isCorrect
+                      ? 'rgba(34,197,94,0.25)'
+                      : isWrong
+                        ? 'rgba(239,68,68,0.25)'
+                        : 'rgba(255,255,255,0.06)';
+                    const borderColor = isCorrect
+                      ? 'rgba(34,197,94,0.7)'
+                      : isWrong
+                        ? 'rgba(239,68,68,0.7)'
+                        : isSelected
+                          ? 'rgba(139,92,246,0.7)'
+                          : 'var(--border-subtle)';
+                    return (
+                      <button
+                        key={idx}
+                        id={`choice-btn-${idx}`}
+                        onClick={() => handleChoiceSelect(choice)}
+                        disabled={submitted}
+                        style={{
+                          padding: '0.85rem 1rem',
+                          borderRadius: '12px',
+                          border: `2px solid ${borderColor}`,
+                          background: bgColor,
+                          color: 'var(--text-primary)',
+                          fontWeight: 700,
+                          fontSize: '0.9rem',
+                          cursor: submitted ? 'default' : 'pointer',
+                          transition: 'all 0.2s',
+                          textAlign: 'left',
+                          lineHeight: 1.3,
+                          minHeight: '56px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                        }}
+                      >
+                        <span style={{ fontSize: '1rem', flexShrink: 0 }}>
+                          {isCorrect ? '✅' : isWrong ? '❌' : ['🅐', '🅑', '🅒', '🅓'][idx]}
+                        </span>
+                        {choice}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             )}
 

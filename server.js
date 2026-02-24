@@ -3,6 +3,25 @@ const { parse } = require('url');
 const next = require('next');
 const { Server } = require('socket.io');
 const { randomUUID } = require('crypto');
+const fs = require('fs');
+const path = require('path');
+
+// ─── Playlist persistence ───────────────────────────────────────────────────
+const PLAYLISTS_FILE = path.join(__dirname, 'data', 'playlists.json');
+
+function loadPlaylists() {
+  try {
+    const raw = fs.readFileSync(PLAYLISTS_FILE, 'utf8');
+    return JSON.parse(raw).playlists || [];
+  } catch {
+    return [];
+  }
+}
+
+function savePlaylists(playlists) {
+  fs.mkdirSync(path.dirname(PLAYLISTS_FILE), { recursive: true });
+  fs.writeFileSync(PLAYLISTS_FILE, JSON.stringify({ playlists }, null, 2), 'utf8');
+}
 
 const dev = process.env.NODE_ENV !== 'production';
 // Disable Turbopack — it has Windows compatibility issues with reserved filenames (nul, con, etc.)
@@ -146,7 +165,8 @@ app.prepare().then(() => {
 
       player.answered = true;
       const song = room.songs[room.currentRound];
-      const correct = checkAnswer(answer, song.title, song.artist);
+      // Exact match against the pre-generated correct choice label (multiple-choice mode)
+      const correct = room._correctChoice ? answer === room._correctChoice : checkAnswer(answer, song.title, song.artist);
       const timeBonus = room._roundTimeLeft || 0;
 
       let pointsEarned = 0;
@@ -212,6 +232,7 @@ app.prepare().then(() => {
           timeLeft: room._roundTimeLeft || 0,
           players: room.players.map((p) => ({ id: p.id, name: p.name, score: p.score, answered: p.answered })),
           hostId: room.hostId,
+          choices: room._currentChoices || [],
         });
       } else if (room.status === 'round-result' && room.currentSong) {
         callback({
@@ -237,6 +258,103 @@ app.prepare().then(() => {
       room.answers = [];
       room.players.forEach((p) => { p.score = 0; p.answered = false; });
       io.to(roomCode).emit('game-restarted', sanitizeRoom(room));
+    });
+
+    // ─── Playlist events ─────────────────────────────────────────────────────
+
+    // Get all playlists
+    socket.on('get-playlists', (_, callback) => {
+      callback({ success: true, playlists: loadPlaylists() });
+    });
+
+    // Save current room songs as a new playlist
+    socket.on('save-playlist', ({ roomCode, name, createdBy }, callback) => {
+      const room = getRoom(roomCode);
+      if (!room) return callback({ success: false, error: 'ไม่พบห้อง' });
+      if (room.hostId !== socket.id) return callback({ success: false, error: 'เฉพาะ Host เท่านั้น' });
+      if (!name?.trim()) return callback({ success: false, error: 'กรุณาใส่ชื่อ Playlist' });
+      if (room.songs.length === 0) return callback({ success: false, error: 'ไม่มีเพลงในห้อง' });
+
+      const playlists = loadPlaylists();
+      const newPlaylist = {
+        id: randomUUID(),
+        name: name.trim(),
+        createdBy: createdBy || 'Unknown',
+        createdAt: new Date().toISOString(),
+        songs: room.songs.map(s => ({ videoId: s.videoId, title: s.title, artist: s.artist, thumbnail: s.thumbnail })),
+      };
+      playlists.push(newPlaylist);
+      savePlaylists(playlists);
+      callback({ success: true, playlist: newPlaylist, playlists });
+    });
+
+    // Load a playlist's songs into the current room (replaces existing songs)
+    socket.on('load-playlist', ({ roomCode, playlistId }, callback) => {
+      const room = getRoom(roomCode);
+      if (!room) return callback({ success: false, error: 'ไม่พบห้อง' });
+      if (room.hostId !== socket.id) return callback({ success: false, error: 'เฉพาะ Host เท่านั้น' });
+
+      const playlists = loadPlaylists();
+      const playlist = playlists.find(p => p.id === playlistId);
+      if (!playlist) return callback({ success: false, error: 'ไม่พบ Playlist' });
+
+      room.songs = [...playlist.songs];
+      io.to(roomCode).emit('song-list-updated', { songs: room.songs });
+      callback({ success: true, songs: room.songs });
+    });
+
+    // Delete a playlist
+    socket.on('delete-playlist', ({ playlistId }, callback) => {
+      const playlists = loadPlaylists();
+      const idx = playlists.findIndex(p => p.id === playlistId);
+      if (idx === -1) return callback({ success: false, error: 'ไม่พบ Playlist' });
+      playlists.splice(idx, 1);
+      savePlaylists(playlists);
+      callback({ success: true, playlists });
+    });
+
+    // Rename a playlist
+    socket.on('rename-playlist', ({ playlistId, name }, callback) => {
+      if (!name?.trim()) return callback({ success: false, error: 'กรุณาใส่ชื่อ' });
+      const playlists = loadPlaylists();
+      const pl = playlists.find(p => p.id === playlistId);
+      if (!pl) return callback({ success: false, error: 'ไม่พบ Playlist' });
+      pl.name = name.trim();
+      savePlaylists(playlists);
+      callback({ success: true, playlists });
+    });
+
+    // Add a song to a saved playlist
+    socket.on('add-song-to-playlist', ({ playlistId, song }, callback) => {
+      if (!song?.videoId || !song?.title) return callback({ success: false, error: 'ข้อมูลเพลงไม่ครบ' });
+      const playlists = loadPlaylists();
+      const pl = playlists.find(p => p.id === playlistId);
+      if (!pl) return callback({ success: false, error: 'ไม่พบ Playlist' });
+      pl.songs.push({ videoId: song.videoId, title: song.title, artist: song.artist || 'Unknown', thumbnail: song.thumbnail || '' });
+      savePlaylists(playlists);
+      callback({ success: true, playlists });
+    });
+
+    // Edit a song within a saved playlist
+    socket.on('edit-song-in-playlist', ({ playlistId, songIndex, song }, callback) => {
+      const playlists = loadPlaylists();
+      const pl = playlists.find(p => p.id === playlistId);
+      if (!pl) return callback({ success: false, error: 'ไม่พบ Playlist' });
+      if (songIndex < 0 || songIndex >= pl.songs.length) return callback({ success: false, error: 'ไม่พบเพลง' });
+      pl.songs[songIndex] = { videoId: song.videoId || pl.songs[songIndex].videoId, title: song.title || pl.songs[songIndex].title, artist: song.artist ?? pl.songs[songIndex].artist, thumbnail: song.thumbnail ?? pl.songs[songIndex].thumbnail };
+      savePlaylists(playlists);
+      callback({ success: true, playlists });
+    });
+
+    // Remove a song from a saved playlist
+    socket.on('remove-song-from-playlist', ({ playlistId, songIndex }, callback) => {
+      const playlists = loadPlaylists();
+      const pl = playlists.find(p => p.id === playlistId);
+      if (!pl) return callback({ success: false, error: 'ไม่พบ Playlist' });
+      if (songIndex < 0 || songIndex >= pl.songs.length) return callback({ success: false, error: 'ไม่พบเพลง' });
+      pl.songs.splice(songIndex, 1);
+      savePlaylists(playlists);
+      callback({ success: true, playlists });
     });
 
     // Disconnect
@@ -295,6 +413,23 @@ function startRound(io, room) {
   room._roundStart = Date.now();
   room._roundTimeLeft = room.roundDuration;
 
+  // Format a song as a choice label: "Title (Artist)" when artist is known
+  const choiceLabel = (s) =>
+    s.artist && s.artist !== 'Unknown' ? `${s.title} (${s.artist})` : s.title;
+
+  // Generate 4 multiple-choice options: 1 correct + up to 3 distractors
+  const distractors = room.songs
+    .filter((_, i) => i !== room.currentRound)
+    .sort(() => Math.random() - 0.5)
+    .slice(0, 3)
+    .map(s => choiceLabel(s));
+  const correctLabel = choiceLabel(song);
+  // De-duplicate in case a distractor label happens to match the correct one
+  const uniqueDistractors = distractors.filter(d => d !== correctLabel);
+  const choices = [correctLabel, ...uniqueDistractors].sort(() => Math.random() - 0.5);
+  room._currentChoices = choices;
+  room._correctChoice = correctLabel;
+
   io.to(room.code).emit('round-started', {
     round: room.currentRound + 1,
     totalRounds: room.totalRounds,
@@ -302,6 +437,7 @@ function startRound(io, room) {
     duration: room.roundDuration,
     hostId: room.hostId,
     players: room.players.map((p) => ({ id: p.id, name: p.name, score: p.score, answered: false })),
+    choices,
   });
 
   // Countdown tick
