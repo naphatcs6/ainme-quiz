@@ -152,10 +152,10 @@ export default function LobbyPage() {
   const handleAddSongToPlaylist = useCallback((playlistId: string) => {
     const vid = extractVideoId(addToPlUrl.trim());
     if (!vid) return setAddToPlError('URL ไม่ถูกต้อง');
-    if (!addToPlTitle.trim()) return setAddToPlError('กรุณาใส่ชื่อเพลง');
+    if (!addToPlArtist.trim()) return setAddToPlError('กรุณาใส่ชื่ออนิเมะ');
     emit('add-song-to-playlist', {
       playlistId,
-      song: { videoId: vid, title: addToPlTitle.trim(), artist: addToPlArtist.trim() || 'Unknown', thumbnail: `https://img.youtube.com/vi/${vid}/mqdefault.jpg` },
+      song: { videoId: vid, title: addToPlTitle.trim(), artist: addToPlArtist.trim(), thumbnail: `https://img.youtube.com/vi/${vid}/mqdefault.jpg` },
     }, (res: { success: boolean; playlists?: Playlist[]; error?: string }) => {
       if (res.success) { setPlaylists(res.playlists || []); setAddToPlUrl(''); setAddToPlTitle(''); setAddToPlArtist(''); setAddToPlError(''); showMsg('✅ เพิ่มเพลงแล้ว!'); }
       else setAddToPlError(res.error || 'เกิดข้อผิดพลาด');
@@ -377,8 +377,8 @@ export default function LobbyPage() {
                                         <div style={{ marginTop: '0.35rem', padding: '0.5rem', background: 'rgba(251,191,36,0.06)', borderRadius: '8px', border: '1px solid rgba(251,191,36,0.15)' }}>
                                           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                             <input style={inputSmall} placeholder="YouTube URL (เว้นว่างถ้าไม่เปลี่ยน)" value={editSongUrl} onChange={e => setEditSongUrl(e.target.value)} />
-                                            <input style={inputSmall} placeholder="ชื่อเพลง" value={editSongTitle} onChange={e => setEditSongTitle(e.target.value)} />
                                             <input style={inputSmall} placeholder="ชื่ออนิเมะ / ภาค" value={editSongArtist} onChange={e => setEditSongArtist(e.target.value)} />
+                                            <input style={inputSmall} placeholder="ชื่อเพลง (ไม่บังคับ)" value={editSongTitle} onChange={e => setEditSongTitle(e.target.value)} />
                                             <div style={{ display: 'flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
                                               <button onClick={() => setEditingSongIdx(null)} style={smallBtn('rgba(255,255,255,0.06)', 'var(--border-subtle)', 'var(--text-muted)')}>ยกเลิก</button>
                                               <button onClick={() => handleEditSongInPlaylist(pl.id, si)} style={smallBtn('rgba(34,197,94,0.15)', 'rgba(34,197,94,0.4)', '#4ade80')}>💾 บันทึก</button>
@@ -396,8 +396,8 @@ export default function LobbyPage() {
                                 <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '0.4rem' }}>➕ เพิ่มเพลงเข้า Playlist</div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                                   <input style={inputSmall} placeholder="YouTube URL" value={addToPlUrl} onChange={e => setAddToPlUrl(e.target.value)} />
-                                  <input style={inputSmall} placeholder="ชื่อเพลง" value={addToPlTitle} onChange={e => setAddToPlTitle(e.target.value)} />
-                                  <input style={inputSmall} placeholder="ชื่ออนิเมะ / ภาค" value={addToPlArtist} onChange={e => setAddToPlArtist(e.target.value)} />
+                                  <input style={inputSmall} placeholder="ชื่ออนิเมะ / ภาค (บังคับ)" value={addToPlArtist} onChange={e => setAddToPlArtist(e.target.value)} />
+                                  <input style={inputSmall} placeholder="ชื่อเพลง (ไม่บังคับ)" value={addToPlTitle} onChange={e => setAddToPlTitle(e.target.value)} />
                                   {addToPlError && <p style={{ color: '#fca5a5', fontSize: '0.75rem', margin: 0 }}>{addToPlError}</p>}
                                   <button onClick={() => handleAddSongToPlaylist(pl.id)}
                                     style={{ ...smallBtn('rgba(34,197,94,0.15)', 'rgba(34,197,94,0.4)', '#4ade80'), padding: '0.4rem 0.75rem', alignSelf: 'flex-end' }}>

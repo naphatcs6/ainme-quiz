@@ -326,11 +326,11 @@ app.prepare().then(() => {
 
     // Add a song to a saved playlist
     socket.on('add-song-to-playlist', ({ playlistId, song }, callback) => {
-      if (!song?.videoId || !song?.title) return callback({ success: false, error: 'ข้อมูลเพลงไม่ครบ' });
+      if (!song?.videoId || !song?.artist) return callback({ success: false, error: 'ข้อมูลเพลงไม่ครบ' });
       const playlists = loadPlaylists();
       const pl = playlists.find(p => p.id === playlistId);
       if (!pl) return callback({ success: false, error: 'ไม่พบ Playlist' });
-      pl.songs.push({ videoId: song.videoId, title: song.title, artist: song.artist || 'Unknown', thumbnail: song.thumbnail || '' });
+      pl.songs.push({ videoId: song.videoId, title: song.title || '', artist: song.artist, thumbnail: song.thumbnail || '' });
       savePlaylists(playlists);
       callback({ success: true, playlists });
     });
