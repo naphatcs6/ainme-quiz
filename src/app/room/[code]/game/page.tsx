@@ -259,8 +259,9 @@ export default function GamePage() {
                     </div>
                   )}
 
-                  <div style={{ fontSize: '1.4rem', fontWeight: 900, marginBottom: '0.25rem' }}>{revealSong?.title}</div>
-                  <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>{revealSong?.artist}</div>
+                  <div style={{ fontSize: '1.4rem', fontWeight: 900, marginBottom: '0.25rem' }}>{revealSong?.artist}</div>
+                  {revealSong?.title && <div style={{ color: 'var(--text-secondary)', marginBottom: '1rem', fontSize: '0.95rem' }}>🎵 {revealSong.title}</div>}
+                  {!revealSong?.title && <div style={{ marginBottom: '1rem' }} />}
                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', justifyContent: 'center', marginBottom: '1rem' }}>
                     {players.filter(p => p.correct).map(p => (
                       <span key={p.id} className="badge badge-green">✅ {p.name} ตอบถูก!</span>

@@ -122,7 +122,7 @@ app.prepare().then(() => {
       if (!room) return callback({ success: false, error: 'ไม่พบห้อง' });
       if (room.hostId !== socket.id) return callback({ success: false, error: 'เฉพาะ host เท่านั้น' });
 
-      const song = { videoId, title: title || 'Unknown', artist: artist || 'Unknown', thumbnail };
+      const song = { videoId, title: title || '', artist: artist || 'Unknown', thumbnail };
       room.songs.push(song);
       callback({ success: true, songs: room.songs });
       io.to(roomCode).emit('song-list-updated', { songs: room.songs });
@@ -414,9 +414,9 @@ function startRound(io, room) {
   room._roundStart = Date.now();
   room._roundTimeLeft = room.roundDuration;
 
-  // Format a song as a choice label: "Title (Artist)" when artist is known
+  // Format a choice label using anime name (artist), with song title if present
   const choiceLabel = (s) =>
-    s.artist && s.artist !== 'Unknown' ? `${s.title} (${s.artist})` : s.title;
+    s.title ? `${s.artist} (${s.title})` : s.artist;
 
   // Generate 4 multiple-choice options: 1 correct + up to 3 distractors
   const distractors = room.songs

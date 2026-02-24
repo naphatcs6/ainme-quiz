@@ -87,10 +87,10 @@ export default function LobbyPage() {
   const handleAddSong = useCallback(() => {
     const vid = extractVideoId(youtubeUrl.trim());
     if (!vid) return setAddError('URL ไม่ถูกต้อง ลองใหม่อีกครั้ง');
-    if (!songTitle.trim()) return setAddError('กรุณาใส่ชื่อเพลง');
+    if (!songArtist.trim()) return setAddError('กรุณาใส่ชื่ออนิเมะ');
     emit('add-song', {
       roomCode: code, videoId: vid, title: songTitle.trim(),
-      artist: songArtist.trim() || 'Unknown',
+      artist: songArtist.trim(),
       thumbnail: `https://img.youtube.com/vi/${vid}/mqdefault.jpg`,
     }, (res: { success: boolean; songs: Song[]; error?: string }) => {
       if (res.success) { setSongs(res.songs); setYoutubeUrl(''); setSongTitle(''); setSongArtist(''); setAddError(''); }
@@ -246,8 +246,8 @@ export default function LobbyPage() {
             </h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <input id="youtube-url" className="input-field" placeholder="YouTube URL (ตัวอย่าง: https://youtu.be/...)" value={youtubeUrl} onChange={e => setYoutubeUrl(e.target.value)} />
-              <input id="song-title" className="input-field" placeholder="ชื่อเพลง (สำหรับทาย)" value={songTitle} onChange={e => setSongTitle(e.target.value)} />
-              <input id="song-artist" className="input-field" placeholder="ชื่ออนิเมะ / ภาค เช่น SAO Season 1 (จะแสดงในตัวเลือก)" value={songArtist} onChange={e => setSongArtist(e.target.value)} />
+              <input id="song-artist" className="input-field" placeholder="ชื่ออนิเมะ / ภาค เช่น SAO Season 1 (ใช้ทาย)" value={songArtist} onChange={e => setSongArtist(e.target.value)} />
+              <input id="song-title" className="input-field" placeholder="ชื่อเพลง (ไม่บังคับ)" value={songTitle} onChange={e => setSongTitle(e.target.value)} />
               {addError && <p style={{ color: '#fca5a5', fontSize: '0.8rem', margin: 0 }}>{addError}</p>}
               <button id="add-song-btn" className="btn-primary" onClick={handleAddSong}>✨ เพิ่มเพลง</button>
             </div>
